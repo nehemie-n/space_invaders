@@ -47,6 +47,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     stdout.execute(EnterAlternateScreen)?;
     stdout.execute(Hide)?;
 
+    // 
+
     // main game loop
 
     'game: loop {
