@@ -1,4 +1,4 @@
-use std::{error::Error, io, time::Duration};
+use std::{error::Error, io, sync::mpsc::channel, thread, time::Duration};
 
 use crossterm::{
     cursor::{Hide, Show},
@@ -7,6 +7,8 @@ use crossterm::{
     ExecutableCommand,
 };
 use rusty_audio::Audio;
+use space_invaders::{frame::{Drawable, new_frame}, render};
+use space_invaders::{frame::Frame, player::Player};
 
 enum Sounds {
     EXPLODE,
@@ -47,14 +49,36 @@ fn main() -> Result<(), Box<dyn Error>> {
     stdout.execute(EnterAlternateScreen)?;
     stdout.execute(Hide)?;
 
-    // 
+    //
+    //
+    let (render_tx, render_rx) = channel::<Frame>();
+    let handle = thread::spawn(move || {
+        let mut prev_frame: Vec<Vec<&str>> = new_frame();
+        let mut stdout = io::stdout();
+        render::render(&mut stdout, &prev_frame, &prev_frame, true);
+        loop {
+            let curr_frame = match render_rx.recv() {
+                Ok(frame) => frame,
+                Err(_) => break,
+            };
+            render::render(&mut stdout, &prev_frame, &curr_frame, false);
+            prev_frame = curr_frame;
+        }
+    });
+
+    // player
+    let mut player = Player::new();
 
     // main game loop
-
     'game: loop {
+        // per frame init
+        let mut curr_frame = new_frame();
+
         while event::poll(Duration::default())? {
             if let Event::Key(key_event) = event::read()? {
                 match key_event.code {
+                    event::KeyCode::Right => player.move_right(),
+                    event::KeyCode::Left => player.move_left(),
                     event::KeyCode::Esc => {
                         audio.play(Sounds::LOSE.name());
                         break 'game;
@@ -63,9 +87,15 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+        // draw and render the frame
+        player.draw(&mut curr_frame);
+        let _ = render_tx.send(curr_frame);
+        thread::sleep(Duration::from_millis(1));
     }
 
     // audio clean up
+    drop(render_tx);
+    handle.join().unwrap();
     audio.wait();
     // terminal clean up
     stdout.execute(Show)?;

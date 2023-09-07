@@ -20,7 +20,7 @@ pub fn render(stdout: &mut Stdout, prev_frame: &Frame, new_frame: &Frame, force:
         for (y, s) in col.iter().enumerate() {
             if *s != prev_frame[x][y] || force {
                 stdout.queue(MoveTo(x as u16, y as u16)).unwrap();
-                println!("{}", *s)
+                print!("{}", *s)
             }
         }
     }
