@@ -1,4 +1,10 @@
-use std::{error::Error, io, sync::mpsc::channel, thread, time::Duration};
+use std::{
+    error::Error,
+    io,
+    sync::mpsc::channel,
+    thread,
+    time::{Duration, Instant},
+};
 
 use crossterm::{
     cursor::{Hide, Show},
@@ -7,8 +13,11 @@ use crossterm::{
     ExecutableCommand,
 };
 use rusty_audio::Audio;
-use space_invaders::{frame::{Drawable, new_frame}, render};
 use space_invaders::{frame::Frame, player::Player};
+use space_invaders::{
+    frame::{new_frame, Drawable},
+    render,
+};
 
 enum Sounds {
     EXPLODE,
@@ -68,9 +77,12 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // player
     let mut player = Player::new();
+    let mut instant = Instant::now();
 
     // main game loop
     'game: loop {
+        let delta = instant.elapsed();
+        instant = Instant::now();
         // per frame init
         let mut curr_frame = new_frame();
 
@@ -79,6 +91,11 @@ fn main() -> Result<(), Box<dyn Error>> {
                 match key_event.code {
                     event::KeyCode::Right => player.move_right(),
                     event::KeyCode::Left => player.move_left(),
+                    event::KeyCode::Char(' ') => {
+                        if player.shoot() {
+                            audio.play(Sounds::PEW.name());
+                        };
+                    }
                     event::KeyCode::Esc => {
                         audio.play(Sounds::LOSE.name());
                         break 'game;
@@ -87,6 +104,9 @@ fn main() -> Result<(), Box<dyn Error>> {
                 }
             }
         }
+        //
+        player.update(delta);
+
         // draw and render the frame
         player.draw(&mut curr_frame);
         let _ = render_tx.send(curr_frame);
